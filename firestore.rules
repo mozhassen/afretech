@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Botanical Plants: Public read for catalog, allow contributors to store new plants
+    match /plants/{plantId} {
+      allow read, write: if true;
+    }
+    
+    // Contributor Submissions: Allow recording and researcher review across devices
+    match /submissions/{submissionId} {
+      allow read, write: if true;
+    }
+
+    // Sync activity logs
+    match /sync_logs/{logId} {
+      allow read, write: if true;
+    }
+  }
+}

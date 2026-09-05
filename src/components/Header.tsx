@@ -11,7 +11,8 @@ import {
   MapPin, 
   Phone, 
   Sparkles,
-  Volume2
+  Volume2,
+  Cloud
 } from 'lucide-react';
 import { Language, UserRole } from '../types';
 
@@ -94,9 +95,9 @@ export const Header: React.FC = () => {
             >
               {isOnline ? (
                 <>
-                  <Wifi className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="hidden xs:inline">Online</span>
-                  <span className="text-[10px] text-emerald-400/80 hidden md:inline">• Delta Sync Active</span>
+                  <Cloud className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="hidden xs:inline font-semibold">Online</span>
+                  <span className="text-[10px] text-emerald-400/90 hidden md:inline">• Cloud Sync Active (Multi-Device)</span>
                 </>
               ) : (
                 <>

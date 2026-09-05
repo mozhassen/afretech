@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Language, 
   UserRole, 
@@ -9,6 +9,21 @@ import {
 } from '../types';
 import { initialPlantsData } from '../data/plantsData';
 import { translations, TranslationSchema } from '../data/translations';
+import { 
+  db, 
+  collection, 
+  doc, 
+  setDoc, 
+  onSnapshot, 
+  updateDoc 
+} from '../lib/firebase';
+
+function sanitizeForFirestore<T>(data: T): T {
+  return JSON.parse(JSON.stringify(data, (key, value) => {
+    if (value === undefined) return null;
+    return value;
+  }));
+}
 
 interface AppContextType {
   // Localization
@@ -136,6 +151,65 @@ const DEFAULT_USER: UserProfile = {
   language: 'en',
   specialization: 'Herbal Medicine & Phytotherapy'
 };
+
+const defaultInitialSubmissions: ContributionSubmission[] = [
+  {
+    id: 'sub-pilot-01',
+    timestamp: '2026-09-04 14:20',
+    practitionerName: 'Mama Folashade Ogundipe',
+    practitionerPhone: '+234 802 884 1120',
+    intermediaryAssisted: true,
+    intermediaryName: 'Kehinde O. (UniLag Youth Intermediary)',
+    country: 'Nigeria',
+    state: 'Ogun State (Abeokuta North)',
+    plantName: 'Tetrapleura tetraptera (Aidan)',
+    localName: 'Èso Àìdán (Yorùbá)',
+    scientificGuess: 'Tetrapleura tetraptera',
+    partsUsed: ['seeds', 'bark'],
+    preparationSteps: 'The dried fruit pod is chopped into segments and boiled with local spices for post-partum cleansing, uterine involution, and reducing infantile fever spasms.',
+    dosage: 'Half a cup of decoction morning and evening for 5 days after delivery.',
+    ailmentsTreated: ['Postpartum Recovery', 'Infantile Convulsions', 'Hypertension'],
+    coordinates: {
+      lat: 7.1557,
+      lng: 3.3489,
+      accuracyMeters: 4.2,
+      state: 'Ogun State',
+      country: 'Nigeria',
+      habitatNotes: 'Moist lowland deciduous forest boundary near farm settlement.'
+    },
+    consentAgreed: true,
+    syncStatus: 'approved_by_researcher',
+    reviewerNotes: 'Validated by UniLag Pharmacognosy Lab. Rich in saponins and coumarins.'
+  },
+  {
+    id: 'sub-pilot-02',
+    timestamp: '2026-09-05 08:35',
+    practitionerName: 'Ato Girma Wolde',
+    practitionerPhone: '+251 911 445 229',
+    intermediaryAssisted: true,
+    intermediaryName: 'Meklit D. (AASTU Telecomm Assistant)',
+    country: 'Ethiopia',
+    state: 'Shewa (Debre Berhan)',
+    plantName: 'Ruta chalepensis (Tena Adam)',
+    localName: 'ጤና አዳም (Tena Adam)',
+    scientificGuess: 'Ruta chalepensis',
+    partsUsed: ['leaves', 'seeds'],
+    preparationSteps: 'Fresh green twigs steeped in hot Ethiopian coffee or boiled with milk to relieve acute stomach colic and infant respiratory phlegm.',
+    dosage: 'One small cup with coffee or 3 tablespoons boiled milk.',
+    ailmentsTreated: ['Colic & Stomach Cramps', 'Common Cold', 'Respiratory Congestion'],
+    coordinates: {
+      lat: 9.6781,
+      lng: 39.5328,
+      accuracyMeters: 3.8,
+      state: 'Amhara / North Shewa',
+      country: 'Ethiopia',
+      habitatNotes: 'Rocky mountain garden terrace at 2800m altitude.'
+    },
+    consentAgreed: true,
+    syncStatus: 'synced_cloud',
+    reviewerNotes: 'Pending secondary cross-referencing with UniLag team.'
+  }
+];
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Language
@@ -267,11 +341,80 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addPlant = (newPlant: Plant) => {
     setPlants(prev => [newPlant, ...prev]);
+    if (isOnline) {
+      try {
+        setDoc(doc(db, 'plants', newPlant.id), sanitizeForFirestore(newPlant)).catch(err => {
+          console.warn("Failed to upload plant to firestore:", err);
+        });
+      } catch (err) {
+        console.warn("Firestore addPlant error:", err);
+      }
+    }
   };
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.PLANTS_CACHE, JSON.stringify(plants));
   }, [plants]);
+
+  // Real-time Firestore sync for Submissions across all connected devices (phones, laptops, researchers)
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, 'submissions'), (snapshot) => {
+        if (!snapshot.empty) {
+          const remoteList: ContributionSubmission[] = [];
+          snapshot.forEach(docSnap => {
+            remoteList.push(docSnap.data() as ContributionSubmission);
+          });
+
+          setSubmissions(localPrev => {
+            const remoteMap = new Map(remoteList.map(s => [s.id, s]));
+            const localQueued = localPrev.filter(s => s.syncStatus === 'queued_offline' && !remoteMap.has(s.id));
+            const merged = [...localQueued, ...remoteList];
+            merged.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+            return merged;
+          });
+        } else {
+          // If Firestore is empty, seed initial pilot entries so all devices immediately share them
+          defaultInitialSubmissions.forEach(sub => {
+            setDoc(doc(db, 'submissions', sub.id), sanitizeForFirestore(sub)).catch(() => {});
+          });
+        }
+      }, (err) => {
+        console.warn("Firestore submissions listener error:", err);
+      });
+
+      return () => unsub();
+    } catch (e) {
+      console.warn("Could not attach firestore submissions listener:", e);
+    }
+  }, []);
+
+  // Real-time Firestore sync for Plants Catalog across all devices
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(collection(db, 'plants'), (snapshot) => {
+        if (!snapshot.empty) {
+          const remotePlants: Plant[] = [];
+          snapshot.forEach(docSnap => {
+            remotePlants.push(docSnap.data() as Plant);
+          });
+
+          setPlants(localPrev => {
+            const remoteMap = new Map(remotePlants.map(p => [p.id, p]));
+            const localCustom = localPrev.filter(p => !initialPlantsData.some(ip => ip.id === p.id) && !remoteMap.has(p.id));
+            const defaultPlants = initialPlantsData.filter(ip => !remoteMap.has(ip.id));
+            return [...localCustom, ...remotePlants, ...defaultPlants];
+          });
+        }
+      }, (err) => {
+        console.warn("Firestore plants listener error:", err);
+      });
+
+      return () => unsub();
+    } catch (e) {
+      console.warn("Could not attach firestore plants listener:", e);
+    }
+  }, []);
 
   // Submissions (offline queue)
   const [submissions, setSubmissions] = useState<ContributionSubmission[]>(() => {
@@ -279,65 +422,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (saved) {
       try { return JSON.parse(saved); } catch (e) { /* fallback */ }
     }
-    // Pre-populate with realistic field submissions from UniLag and AASTU field pilots
-    return [
-      {
-        id: 'sub-pilot-01',
-        timestamp: '2026-09-04 14:20',
-        practitionerName: 'Mama Folashade Ogundipe',
-        practitionerPhone: '+234 802 884 1120',
-        intermediaryAssisted: true,
-        intermediaryName: 'Kehinde O. (UniLag Youth Intermediary)',
-        country: 'Nigeria',
-        state: 'Ogun State (Abeokuta North)',
-        plantName: 'Tetrapleura tetraptera (Aidan)',
-        localName: 'Èso Àìdán (Yorùbá)',
-        scientificGuess: 'Tetrapleura tetraptera',
-        partsUsed: ['seeds', 'bark'],
-        preparationSteps: 'The dried fruit pod is chopped into segments and boiled with local spices for post-partum cleansing, uterine involution, and reducing infantile fever spasms.',
-        dosage: 'Half a cup of decoction morning and evening for 5 days after delivery.',
-        ailmentsTreated: ['Postpartum Recovery', 'Infantile Convulsions', 'Hypertension'],
-        coordinates: {
-          lat: 7.1557,
-          lng: 3.3489,
-          accuracyMeters: 4.2,
-          state: 'Ogun State',
-          country: 'Nigeria',
-          habitatNotes: 'Moist lowland deciduous forest boundary near farm settlement.'
-        },
-        consentAgreed: true,
-        syncStatus: 'approved_by_researcher',
-        reviewerNotes: 'Validated by UniLag Pharmacognosy Lab. Rich in saponins and coumarins.'
-      },
-      {
-        id: 'sub-pilot-02',
-        timestamp: '2026-09-05 08:35',
-        practitionerName: 'Ato Girma Wolde',
-        practitionerPhone: '+251 911 445 229',
-        intermediaryAssisted: true,
-        intermediaryName: 'Meklit D. (AASTU Telecomm Assistant)',
-        country: 'Ethiopia',
-        state: 'Shewa (Debre Berhan)',
-        plantName: 'Ruta chalepensis (Tena Adam)',
-        localName: 'ጤና አዳም (Tena Adam)',
-        scientificGuess: 'Ruta chalepensis',
-        partsUsed: ['leaves', 'seeds'],
-        preparationSteps: 'Fresh green twigs steeped in hot Ethiopian coffee or boiled with milk to relieve acute stomach colic and infant respiratory phlegm.',
-        dosage: 'One small cup with coffee or 3 tablespoons boiled milk.',
-        ailmentsTreated: ['Colic & Stomach Cramps', 'Common Cold', 'Respiratory Congestion'],
-        coordinates: {
-          lat: 9.6781,
-          lng: 39.5328,
-          accuracyMeters: 3.8,
-          state: 'Amhara / North Shewa',
-          country: 'Ethiopia',
-          habitatNotes: 'Rocky mountain garden terrace at 2800m altitude.'
-        },
-        consentAgreed: true,
-        syncStatus: 'synced_cloud',
-        reviewerNotes: 'Pending secondary cross-referencing with UniLag team.'
-      }
-    ];
+    return defaultInitialSubmissions;
   });
 
   useEffect(() => {
@@ -428,12 +513,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPlants(prev => [newPlant, ...prev]);
 
     if (isOnline) {
+      // Direct upload to shared Cloud Firestore
+      try {
+        setDoc(doc(db, 'submissions', newId), sanitizeForFirestore(newEntry)).catch(err => {
+          console.warn("Firestore submission write error:", err);
+        });
+        setDoc(doc(db, 'plants', newPlant.id), sanitizeForFirestore(newPlant)).catch(err => {
+          console.warn("Firestore plant write error:", err);
+        });
+      } catch (err) {
+        console.warn("Firestore push error:", err);
+      }
+
       // Add sync log immediately
       const newLog: SyncLogItem = {
         id: `log-${Date.now()}`,
         timestamp,
         type: 'upload',
-        description: `Direct upload of "${data.plantName}" specimen and GPS geotagging.`,
+        description: `Direct cloud upload of "${data.plantName}" specimen and GPS geotagging.`,
         recordsCount: 1,
         payloadSizeKb: 284,
         compressedRatio: '68% compression',
@@ -456,6 +553,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return item;
     }));
+
+    // Update in Firestore for real-time researcher sync across devices
+    try {
+      updateDoc(doc(db, 'submissions', id), sanitizeForFirestore({
+        syncStatus: status,
+        reviewerNotes: notes !== undefined ? notes : ''
+      })).catch(err => console.warn("Firestore update error:", err));
+
+      if (status === 'approved_by_researcher') {
+        const plantId = `plant-${id}`;
+        updateDoc(doc(db, 'plants', plantId), {
+          verifiedBy: 'Validated by UniLag & AASTU Research Consortium'
+        }).catch(err => console.warn("Firestore plant update error:", err));
+      }
+    } catch (err) {
+      console.warn("Firestore updateDoc error:", err);
+    }
 
     // If approved by researcher, update the plant verification status in the catalog
     if (status === 'approved_by_researcher') {
@@ -483,12 +597,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setIsSyncing(true);
 
-    // Simulate reliable delta sync transfer delay
-    await new Promise(res => setTimeout(res, 1800));
-
     const queuedItems = submissions.filter(s => s.syncStatus === 'queued_offline');
     const recordsCount = Math.max(queuedItems.length, 1);
     const simulatedPayload = recordsCount * 260; // 260 KB avg per item with audio & photo compression
+
+    // Upload all queued offline items to cloud Firestore
+    for (const sub of queuedItems) {
+      try {
+        const syncedSub = { ...sub, syncStatus: 'synced_cloud' as const };
+        await setDoc(doc(db, 'submissions', sub.id), sanitizeForFirestore(syncedSub));
+        const plantId = `plant-${sub.id}`;
+        const plant = plants.find(p => p.id === plantId);
+        if (plant) {
+          await setDoc(doc(db, 'plants', plantId), sanitizeForFirestore(plant));
+        }
+      } catch (err) {
+        console.warn("Error uploading offline queue to Firestore:", err);
+      }
+    }
 
     setSubmissions(prev => prev.map(sub => {
       if (sub.syncStatus === 'queued_offline') {
@@ -503,7 +629,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `log-${Date.now()}`,
       timestamp: `Today at ${timeStr}`,
       type: 'delta_sync',
-      description: `Delta Sync completed: Transmitted ${recordsCount} updated record(s), media compressed under 300KB threshold.`,
+      description: `Delta Sync completed: Synchronized ${recordsCount} updated record(s) to cloud database.`,
       recordsCount,
       payloadSizeKb: simulatedPayload,
       compressedRatio: '74% bandwidth saved',
@@ -514,7 +640,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setLastSyncedTimestamp(`Today at ${timeStr}`);
     localStorage.setItem(STORAGE_KEYS.LAST_SYNC, `Today at ${timeStr}`);
     setIsSyncing(false);
-  }, [isOnline, submissions]);
+  }, [isOnline, submissions, plants]);
 
   // Auto-sync when transitioning from offline to online
   useEffect(() => {
