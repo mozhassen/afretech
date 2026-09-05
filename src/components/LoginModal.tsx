@@ -1,17 +1,12 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { AUTHORIZED_USERS } from '../context/AppContext';
 import { 
   Lock, 
   UserCheck, 
-  ShieldAlert, 
   X, 
   KeyRound, 
   Check, 
-  AlertCircle,
-  HelpCircle,
-  Sparkles,
-  ArrowRight
+  AlertCircle
 } from 'lucide-react';
 
 export const LoginModal: React.FC = () => {
@@ -46,26 +41,6 @@ export const LoginModal: React.FC = () => {
       }, 1000);
     } else {
       setErrorMessage(result.message || 'Invalid username or password.');
-    }
-  };
-
-  const handleQuickFill = (user: typeof AUTHORIZED_USERS[0]) => {
-    setUsername(user.username);
-    setPassword(user.password);
-    setErrorMessage(null);
-  };
-
-  const handleQuickLogin = (user: typeof AUTHORIZED_USERS[0]) => {
-    setUsername(user.username);
-    setPassword(user.password);
-    const result = login(user.username, user.password);
-    if (result.success) {
-      setSuccessMessage(`Authenticated as ${user.name}!`);
-      setTimeout(() => {
-        setSuccessMessage(null);
-        setIsLoginModalOpen(false);
-        setActiveTab('contribute');
-      }, 800);
     }
   };
 
@@ -189,35 +164,14 @@ export const LoginModal: React.FC = () => {
               type="submit"
               className="w-full bg-stone-900 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl text-xs sm:text-sm transition-colors flex items-center justify-center gap-2 shadow-sm min-h-[48px]"
             >
-              <KeyRound className="w-4 h-4" />
+              <KeyRound className="w-4 h-4 text-emerald-400" />
               <span>Authorize & Sign In</span>
             </button>
 
-            {/* Quick Test Accounts for Evaluators */}
-            <div className="pt-3 border-t border-stone-200">
-              <span className="block text-[11px] font-bold text-stone-500 uppercase tracking-wider mb-2">
-                Authorized Consortium Accounts (Tap to 1-Click Sign In):
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
-                {AUTHORIZED_USERS.map(user => (
-                  <button
-                    key={user.username}
-                    type="button"
-                    onClick={() => handleQuickLogin(user)}
-                    className="p-2.5 rounded-xl border border-stone-200 hover:border-emerald-600 bg-stone-50 hover:bg-emerald-50/50 text-left transition-all text-xs flex flex-col justify-between"
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <span className="font-bold text-stone-900">{user.name.split('(')[0]}</span>
-                      <span className="text-[10px] bg-stone-200 text-stone-700 px-1.5 py-0.5 rounded font-mono">
-                        {user.username}
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-stone-500 mt-0.5 font-mono">
-                      Pass: {user.password}
-                    </span>
-                  </button>
-                ))}
-              </div>
+            <div className="pt-3 border-t border-stone-100 text-center">
+              <p className="text-[11px] text-stone-500 leading-relaxed">
+                Contributor credentials are issued directly to verified traditional healers and consortium researchers by UniLag & AASTU administrators.
+              </p>
             </div>
           </form>
         )}

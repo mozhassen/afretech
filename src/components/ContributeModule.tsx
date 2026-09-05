@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useApp, AUTHORIZED_USERS } from '../context/AppContext';
+import { useApp } from '../context/AppContext';
 import { PlantPart, Coordinates } from '../types';
 import { 
   Camera, 
@@ -53,12 +53,6 @@ export const ContributeModule: React.FC = () => {
     if (!res.success) {
       setGateError(res.message || 'Invalid username or password.');
     }
-  };
-
-  const handleQuickGateLogin = (user: typeof AUTHORIZED_USERS[0]) => {
-    setGateUsername(user.username);
-    setGatePassword(user.password);
-    login(user.username, user.password);
   };
 
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -450,34 +444,13 @@ export const ContributeModule: React.FC = () => {
               <KeyRound className="w-4 h-4 text-emerald-400" />
               <span>Log In & Enter Contribution Form</span>
             </button>
-          </form>
 
-          {/* Quick Login Test Accounts for Project Review */}
-          <div className="pt-2 border-t border-stone-200">
-            <span className="block text-[11px] font-bold text-stone-500 uppercase tracking-wider mb-2">
-              Authorized Test Accounts (1-Click Login):
-            </span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {AUTHORIZED_USERS.map(user => (
-                <button
-                  key={user.username}
-                  type="button"
-                  onClick={() => handleQuickGateLogin(user)}
-                  className="p-3 rounded-xl border border-stone-200 hover:border-emerald-600 bg-stone-50 hover:bg-emerald-50/50 text-left transition-all text-xs flex flex-col justify-between"
-                >
-                  <div className="flex items-center justify-between w-full">
-                    <span className="font-bold text-stone-900">{user.name.split('(')[0]}</span>
-                    <span className="text-[10px] bg-stone-200 text-stone-700 px-1.5 py-0.5 rounded font-mono">
-                      {user.username}
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-stone-500 mt-0.5 font-mono">
-                    Pass: {user.password}
-                  </span>
-                </button>
-              ))}
+            <div className="pt-3 border-t border-stone-100 text-center">
+              <p className="text-[11px] text-stone-500 leading-relaxed">
+                Contributor credentials are confidential and provided exclusively to accredited botanical field researchers and registered indigenous healers.
+              </p>
             </div>
-          </div>
+          </form>
         </div>
       </div>
     );
