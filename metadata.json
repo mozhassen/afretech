@@ -1,0 +1,6 @@
+{
+  "name": "Afretec Traditional Medicine App",
+  "description": "An offline-first, multilingual mobile platform cataloging and standardizing traditional herbal medicine knowledge across Nigeria and Ethiopia, developed by University of Lagos and Addis Ababa Science and Technology University.",
+  "requestFramePermissions": ["camera", "microphone", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
