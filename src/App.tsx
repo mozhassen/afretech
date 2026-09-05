@@ -8,6 +8,7 @@ import { ContributeModule } from './components/ContributeModule';
 import { OfflineSyncEngine } from './components/OfflineSyncEngine';
 import { ResearcherAdmin } from './components/ResearcherAdmin';
 import { PlantDetailModal } from './components/PlantDetailModal';
+import { LoginModal } from './components/LoginModal';
 import { AudioAssistantFloating } from './components/AudioAssistantFloating';
 
 const MainAppContent: React.FC = () => {
@@ -32,6 +33,9 @@ const MainAppContent: React.FC = () => {
 
       {/* Modal for Plant Details */}
       <PlantDetailModal />
+
+      {/* Modal for Contributor Login */}
+      <LoginModal />
 
       {/* Floating Low-Literacy Audio Assistant */}
       <AudioAssistantFloating />

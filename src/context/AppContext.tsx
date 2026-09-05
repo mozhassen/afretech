@@ -60,6 +60,13 @@ interface AppContextType {
   openCompareForPlant: (plantId: string) => void;
   comparisonSelectedPlantId: string;
   setComparisonSelectedPlantId: (id: string) => void;
+
+  // Contributor Authentication (Username & Password)
+  isAuthenticated: boolean;
+  login: (username: string, password: string) => { success: boolean; message?: string };
+  logout: () => void;
+  isLoginModalOpen: boolean;
+  setIsLoginModalOpen: (open: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -72,8 +79,48 @@ const STORAGE_KEYS = {
   SUBMISSIONS: 'afretec_submissions',
   SYNC_LOGS: 'afretec_sync_logs',
   PLANTS_CACHE: 'afretec_plants_cache',
-  LAST_SYNC: 'afretec_last_sync'
+  LAST_SYNC: 'afretec_last_sync',
+  IS_AUTHENTICATED: 'afretec_is_authenticated'
 };
+
+export const AUTHORIZED_USERS = [
+  {
+    username: 'admin',
+    password: 'afretec2026',
+    role: 'researcher' as UserRole,
+    name: 'Consortium Lead Administrator',
+    country: 'Nigeria' as const,
+    state: 'Lagos (UniLag Hub)',
+    phone: '+234 801 000 2026'
+  },
+  {
+    username: 'unilag_healer',
+    password: 'lagos123',
+    role: 'practitioner' as UserRole,
+    name: 'Chief Olatunji Adeleke (Elder Practitioner)',
+    country: 'Nigeria' as const,
+    state: 'Oyo State (Ibadan)',
+    phone: '+234 803 123 4567'
+  },
+  {
+    username: 'aastu_researcher',
+    password: 'addis123',
+    role: 'researcher' as UserRole,
+    name: 'Dr. Tsegaye Hailemariam (AASTU)',
+    country: 'Ethiopia' as const,
+    state: 'Addis Ababa',
+    phone: '+251 911 234 567'
+  },
+  {
+    username: 'field_youth',
+    password: 'youth123',
+    role: 'intermediary' as UserRole,
+    name: 'Bilen Assefa & Tunde Bakare (Youth Assistants)',
+    country: 'Ethiopia' as const,
+    state: 'Shewa / Addis Ababa',
+    phone: '+251 922 456 789'
+  }
+];
 
 const DEFAULT_USER: UserProfile = {
   id: 'user-001',
@@ -135,6 +182,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(STORAGE_KEYS.USER_PROFILE, JSON.stringify(updated));
       return updated;
     });
+  };
+
+  // Contributor Authentication
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return localStorage.getItem(STORAGE_KEYS.IS_AUTHENTICATED) === 'true';
+  });
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
+  const login = (username: string, password: string): { success: boolean; message?: string } => {
+    const trimmedUser = username.trim().toLowerCase();
+    const trimmedPass = password.trim();
+
+    const match = AUTHORIZED_USERS.find(
+      u => u.username.toLowerCase() === trimmedUser && u.password === trimmedPass
+    );
+
+    if (match) {
+      setIsAuthenticated(true);
+      localStorage.setItem(STORAGE_KEYS.IS_AUTHENTICATED, 'true');
+      setCurrentRole(match.role);
+      updateUserProfile({
+        name: match.name,
+        country: match.country,
+        state: match.state,
+        phone: match.phone
+      });
+      return { success: true };
+    }
+
+    // Support PIN 1234 for quick offline field authentication
+    if ((trimmedUser === 'practitioner' || trimmedUser === 'healer') && (trimmedPass === '1234' || trimmedPass === 'afretec2026')) {
+      setIsAuthenticated(true);
+      localStorage.setItem(STORAGE_KEYS.IS_AUTHENTICATED, 'true');
+      setCurrentRole('practitioner');
+      return { success: true };
+    }
+
+    return { 
+      success: false, 
+      message: 'Invalid contributor username or password. Please check your assigned credentials.' 
+    };
+  };
+
+  const logout = () => {
+    setIsAuthenticated(false);
+    localStorage.removeItem(STORAGE_KEYS.IS_AUTHENTICATED);
   };
 
   // Online / Offline state (supports simulating rural offline mode)
@@ -478,7 +571,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveTab,
         openCompareForPlant,
         comparisonSelectedPlantId,
-        setComparisonSelectedPlantId
+        setComparisonSelectedPlantId,
+        isAuthenticated,
+        login,
+        logout,
+        isLoginModalOpen,
+        setIsLoginModalOpen
       }}
     >
       {children}

@@ -27,7 +27,10 @@ export const Header: React.FC = () => {
     toggleNetworkStatus, 
     lastSyncedTimestamp, 
     pendingQueueCount,
-    speakText 
+    speakText,
+    isAuthenticated,
+    logout,
+    setIsLoginModalOpen
   } = useApp();
 
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
@@ -203,6 +206,28 @@ export const Header: React.FC = () => {
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-stone-400" />
           </button>
+
+          {/* Contributor Sign In / Status Pill */}
+          {isAuthenticated ? (
+            <button
+              onClick={logout}
+              title="Click to sign out of contributor mode"
+              className="hidden sm:flex items-center gap-1.5 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-300 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors min-h-[44px]"
+            >
+              <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Sign Out</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setIsLoginModalOpen(true)}
+              title="Sign in with username/password to add plant data"
+              className="flex items-center gap-1.5 bg-stone-800 hover:bg-emerald-700 hover:text-white border border-stone-700 text-stone-300 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors min-h-[44px]"
+            >
+              <Lock className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Sign In to Add Data</span>
+              <span className="sm:hidden">Sign In</span>
+            </button>
+          )}
         </div>
       </div>
 

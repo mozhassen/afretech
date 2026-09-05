@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, AUTHORIZED_USERS } from '../context/AppContext';
 import { PlantPart, Coordinates } from '../types';
 import { 
   Camera, 
@@ -19,7 +19,11 @@ import {
   WifiOff, 
   AlertCircle,
   HelpCircle,
-  Volume2
+  Volume2,
+  Lock,
+  KeyRound,
+  LogOut,
+  UserCheck
 } from 'lucide-react';
 
 export const ContributeModule: React.FC = () => {
@@ -30,8 +34,32 @@ export const ContributeModule: React.FC = () => {
     addSubmission, 
     setActiveTab, 
     speakText,
-    language 
+    language,
+    isAuthenticated,
+    login,
+    logout,
+    setIsLoginModalOpen
   } = useApp();
+
+  // Login Gate State
+  const [gateUsername, setGateUsername] = useState('');
+  const [gatePassword, setGatePassword] = useState('');
+  const [gateError, setGateError] = useState<string | null>(null);
+
+  const handleGateLogin = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setGateError(null);
+    const res = login(gateUsername, gatePassword);
+    if (!res.success) {
+      setGateError(res.message || 'Invalid username or password.');
+    }
+  };
+
+  const handleQuickGateLogin = (user: typeof AUTHORIZED_USERS[0]) => {
+    setGateUsername(user.username);
+    setGatePassword(user.password);
+    login(user.username, user.password);
+  };
 
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -352,8 +380,128 @@ export const ContributeModule: React.FC = () => {
     );
   }
 
+  // Contributor Authentication Gate (When user is not logged in)
+  if (!isAuthenticated) {
+    return (
+      <div className="max-w-xl mx-auto space-y-6">
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-6">
+          <div className="text-center space-y-3">
+            <div className="w-16 h-16 rounded-3xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto shadow-inner">
+              <Lock className="w-8 h-8 text-amber-700" />
+            </div>
+            <h2 className="text-2xl font-black text-stone-900 tracking-tight">
+              Contributor Access Control
+            </h2>
+            <p className="text-xs sm:text-sm text-stone-600 leading-relaxed max-w-md mx-auto">
+              Only authorized traditional healers, youth data assistants, and UniLag / AASTU researchers can record new herbal data.
+            </p>
+          </div>
+
+          <div className="bg-stone-50 p-4 rounded-2xl border border-stone-200 text-xs text-stone-600 space-y-2">
+            <p className="font-semibold text-stone-900 flex items-center gap-1.5">
+              <span>🌿 Public Read-Only Access Available</span>
+            </p>
+            <p className="leading-relaxed">
+              Anyone can freely search the plant catalog, view cross-border comparisons between Nigeria and Ethiopia, and listen to spoken audio narrations.
+            </p>
+          </div>
+
+          {gateError && (
+            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{gateError}</span>
+            </div>
+          )}
+
+          {/* Form */}
+          <form onSubmit={handleGateLogin} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-stone-700 mb-1">
+                Username or Practitioner ID
+              </label>
+              <input
+                type="text"
+                value={gateUsername}
+                onChange={(e) => setGateUsername(e.target.value)}
+                placeholder="e.g. unilag_healer, aastu_researcher, admin"
+                className="w-full bg-stone-50 border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 min-h-[44px]"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-stone-700 mb-1">
+                Password or Rural PIN
+              </label>
+              <input
+                type="password"
+                value={gatePassword}
+                onChange={(e) => setGatePassword(e.target.value)}
+                placeholder="Enter password or PIN"
+                className="w-full bg-stone-50 border border-stone-300 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 min-h-[44px]"
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-stone-900 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-xl text-xs sm:text-sm transition-colors flex items-center justify-center gap-2 shadow-sm min-h-[48px]"
+            >
+              <KeyRound className="w-4 h-4 text-emerald-400" />
+              <span>Log In & Enter Contribution Form</span>
+            </button>
+          </form>
+
+          {/* Quick Login Test Accounts for Project Review */}
+          <div className="pt-2 border-t border-stone-200">
+            <span className="block text-[11px] font-bold text-stone-500 uppercase tracking-wider mb-2">
+              Authorized Test Accounts (1-Click Login):
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {AUTHORIZED_USERS.map(user => (
+                <button
+                  key={user.username}
+                  type="button"
+                  onClick={() => handleQuickGateLogin(user)}
+                  className="p-3 rounded-xl border border-stone-200 hover:border-emerald-600 bg-stone-50 hover:bg-emerald-50/50 text-left transition-all text-xs flex flex-col justify-between"
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className="font-bold text-stone-900">{user.name.split('(')[0]}</span>
+                    <span className="text-[10px] bg-stone-200 text-stone-700 px-1.5 py-0.5 rounded font-mono">
+                      {user.username}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-stone-500 mt-0.5 font-mono">
+                    Pass: {user.password}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
+      {/* Contributor Active Banner */}
+      <div className="bg-emerald-900 text-emerald-100 p-3 sm:p-4 rounded-2xl flex items-center justify-between gap-3 text-xs border border-emerald-700 shadow-xs">
+        <div className="flex items-center gap-2">
+          <UserCheck className="w-4 h-4 text-emerald-300 shrink-0" />
+          <span>
+            Logged in as <strong>{currentUser.name}</strong> ({currentUser.role.toUpperCase()})
+          </span>
+        </div>
+        <button
+          onClick={logout}
+          className="bg-emerald-950/80 hover:bg-emerald-950 text-emerald-200 px-3 py-1.5 rounded-lg border border-emerald-600/50 font-semibold flex items-center gap-1.5 transition-colors"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          <span>Sign Out</span>
+        </button>
+      </div>
+
       {/* Wizard Header */}
       <div className="bg-white rounded-3xl p-5 sm:p-6 border border-stone-200 shadow-xs">
         <div className="flex items-center justify-between gap-4">

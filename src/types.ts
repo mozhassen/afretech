@@ -130,4 +130,6 @@ export interface UserProfile {
   language: Language;
   specialization: string;
   avatarSeed?: string;
+  username?: string;
+  password?: string;
 }
