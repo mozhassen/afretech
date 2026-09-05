@@ -28,12 +28,15 @@ interface AppContextType {
 
   // Botanical Plants Catalog
   plants: Plant[];
+  addPlant: (plant: Plant) => void;
   selectedPlant: Plant | null;
   setSelectedPlant: (plant: Plant | null) => void;
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   selectedRegionFilter: 'all' | 'shared' | 'nigeria' | 'ethiopia';
   setSelectedRegionFilter: (region: 'all' | 'shared' | 'nigeria' | 'ethiopia') => void;
+  selectedAilmentFilter: string | 'all';
+  setSelectedAilmentFilter: (ailment: string | 'all') => void;
   
   // Practitioner Submissions & Offline Queue
   submissions: ContributionSubmission[];
@@ -260,6 +263,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedRegionFilter, setSelectedRegionFilter] = useState<'all' | 'shared' | 'nigeria' | 'ethiopia'>('all');
+  const [selectedAilmentFilter, setSelectedAilmentFilter] = useState<string | 'all'>('all');
+
+  const addPlant = (newPlant: Plant) => {
+    setPlants(prev => [newPlant, ...prev]);
+  };
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.PLANTS_CACHE, JSON.stringify(plants));
+  }, [plants]);
 
   // Submissions (offline queue)
   const [submissions, setSubmissions] = useState<ContributionSubmission[]>(() => {
@@ -378,6 +390,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setSubmissions(prev => [newEntry, ...prev]);
 
+    // Automatically convert this new record into a live, searchable catalog plant
+    const newPlant: Plant = {
+      id: `plant-${newId}`,
+      scientificName: data.scientificGuess?.trim() || data.plantName,
+      family: 'Indigenous Specimen (Field Record)',
+      commonEnglishName: data.plantName,
+      localNames: {
+        amharic: data.country === 'Ethiopia' ? data.localName : '',
+        amharicScript: '',
+        yoruba: data.country === 'Nigeria' ? data.localName : '',
+        english: data.plantName
+      },
+      region: data.country === 'Nigeria' ? 'nigeria' : 'ethiopia',
+      countryAvailability: [data.country],
+      partsUsed: data.partsUsed,
+      habitat: `${data.coordinates.state || data.state} (${data.coordinates.habitatNotes || 'Recorded in indigenous habitat'})`,
+      ailmentsTreated: data.ailmentsTreated.length > 0 ? data.ailmentsTreated : ['General vitality', 'Fever'],
+      preparation: {
+        method: data.preparationSteps,
+        dosage: data.dosage,
+        administration: 'Traditional oral or topical remedy',
+        contraindications: 'Administer under guidance of authorized traditional practitioner'
+      },
+      photoUrl: data.photoDataUrl || 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=900&q=80',
+      photoCaption: `Field specimen recorded by ${data.practitionerName} in ${data.state}, ${data.country}.`,
+      audioNarration: {
+        en: `${data.plantName}, recorded by ${data.practitionerName} in ${data.country}. Used traditionally for ${data.ailmentsTreated.join(', ')}.`,
+        am: `${data.localName || data.plantName} በባህላዊ ሕክምና ለ${data.ailmentsTreated.join(', ')} ያገለግላል።`,
+        yo: `${data.localName || data.plantName}, a máa ń lò ó fún ìtọ́jú ${data.ailmentsTreated.join(', ')}.`,
+        durationSeconds: data.audioDurationSeconds || 15
+      },
+      verifiedBy: isOnline ? `Consortium Review (Contributed by ${data.practitionerName})` : `Pending Sync (Contributed by ${data.practitionerName})`,
+      conservationStatus: 'Common'
+    };
+
+    setPlants(prev => [newPlant, ...prev]);
+
     if (isOnline) {
       // Add sync log immediately
       const newLog: SyncLogItem = {
@@ -407,6 +456,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return item;
     }));
+
+    // If approved by researcher, update the plant verification status in the catalog
+    if (status === 'approved_by_researcher') {
+      const plantId = `plant-${id}`;
+      setPlants(prev => prev.map(p => {
+        if (p.id === plantId) {
+          return {
+            ...p,
+            verifiedBy: 'Validated by UniLag & AASTU Research Consortium'
+          };
+        }
+        return p;
+      }));
+    }
   };
 
   // Delta Sync Engine
@@ -548,12 +611,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         toggleNetworkStatus,
         lastSyncedTimestamp,
         plants,
+        addPlant,
         selectedPlant,
         setSelectedPlant,
         searchTerm,
         setSearchTerm,
         selectedRegionFilter,
         setSelectedRegionFilter,
+        selectedAilmentFilter,
+        setSelectedAilmentFilter,
         submissions,
         addSubmission,
         updateSubmissionStatus,

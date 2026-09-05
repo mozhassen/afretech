@@ -7,14 +7,28 @@ import {
   VolumeX, 
   ArrowRight, 
   ArrowLeftRight, 
-  Sparkles, 
   Filter, 
   CheckCircle2, 
   Globe, 
   Leaf, 
-  ShieldAlert,
-  Info
+  Stethoscope,
+  XCircle,
+  PlusCircle,
+  Tag
 } from 'lucide-react';
+
+export const COMMON_AILMENTS = [
+  { id: 'all', label: 'All Ailments', icon: '🌿', query: '' },
+  { id: 'malaria', label: 'Malaria & Fevers', localHint: 'Ibà / የወባ ትኩሳት', icon: '🦟', query: 'malaria' },
+  { id: 'stomach', label: 'Stomach & Digestion', localHint: 'Inú rírun / የሆድ ቁርጠት', icon: '🫄', query: 'stomach' },
+  { id: 'diabetes', label: 'Diabetes & Blood Sugar', localHint: 'Àtọ̀gbẹ / የስኳር በሽታ', icon: '🩺', query: 'diabetes' },
+  { id: 'hypertension', label: 'Hypertension (High BP)', localHint: 'Ẹ̀jẹ̀ ríru / የደም ግፊት', icon: '🩸', query: 'hypertension' },
+  { id: 'cough', label: 'Cough & Respiratory', localHint: 'Ikọ́ / ሳል እና ጉንፋን', icon: '🫁', query: 'cough' },
+  { id: 'wounds', label: 'Wounds & Skin Infections', localHint: 'Egbò / የቁስል እና ቆዳ', icon: '🩹', query: 'wound' },
+  { id: 'joints', label: 'Arthritis & Joint Pain', localHint: 'Oríkèé rírun / የመገጣጠሚያ', icon: '🦴', query: 'joint' },
+  { id: 'parasites', label: 'Worms & Parasites', localHint: 'Kòkòrò inú / የሆድ ትላትል', icon: '🪱', query: 'parasite' },
+  { id: 'postpartum', label: 'Postpartum & Women\'s Health', localHint: 'Ìbímọ / የወሊድ', icon: '🤱', query: 'postpartum' }
+];
 
 export const PlantCatalog: React.FC = () => {
   const { 
@@ -24,6 +38,9 @@ export const PlantCatalog: React.FC = () => {
     setSearchTerm, 
     selectedRegionFilter, 
     setSelectedRegionFilter,
+    selectedAilmentFilter,
+    setSelectedAilmentFilter,
+    setActiveTab,
     t, 
     language,
     isPlayingAudio, 
@@ -47,7 +64,41 @@ export const PlantCatalog: React.FC = () => {
         return false;
       }
 
-      // Search term
+      // Disease / Ailment category filter
+      if (selectedAilmentFilter !== 'all' && selectedAilmentFilter.trim()) {
+        const ailmentQuery = selectedAilmentFilter.toLowerCase();
+        const matchesAilmentList = plant.ailmentsTreated.some(a => 
+          a.toLowerCase().includes(ailmentQuery)
+        );
+        const matchesPrepMethod = plant.preparation.method.toLowerCase().includes(ailmentQuery);
+        const matchesScientificNotes = plant.comparativeData?.scientificValidationNotes?.toLowerCase().includes(ailmentQuery) || false;
+        
+        // Special synonyms mapping
+        let synonymMatch = false;
+        if (ailmentQuery === 'malaria') {
+          synonymMatch = plant.ailmentsTreated.some(a => /fever|pyrexia|iba|plasmodium|woba/i.test(a));
+        } else if (ailmentQuery === 'stomach') {
+          synonymMatch = plant.ailmentsTreated.some(a => /colic|diarrhea|dysentery|gastric|digestive|qurti|inu/i.test(a));
+        } else if (ailmentQuery === 'hypertension') {
+          synonymMatch = plant.ailmentsTreated.some(a => /pressure|cardiovascular|heart|bp/i.test(a));
+        } else if (ailmentQuery === 'cough') {
+          synonymMatch = plant.ailmentsTreated.some(a => /respiratory|bronchitis|asthma|catarrh|throat|cold|flu/i.test(a));
+        } else if (ailmentQuery === 'wound') {
+          synonymMatch = plant.ailmentsTreated.some(a => /skin|antiseptic|fungal|eczema|cut|lesion|ulcer/i.test(a));
+        } else if (ailmentQuery === 'joint') {
+          synonymMatch = plant.ailmentsTreated.some(a => /arthrit|rheumat|bone|ache|pain|inflammation/i.test(a));
+        } else if (ailmentQuery === 'parasite') {
+          synonymMatch = plant.ailmentsTreated.some(a => /worm|cestode|tapeworm|helminth|wosfat/i.test(a));
+        } else if (ailmentQuery === 'postpartum') {
+          synonymMatch = plant.ailmentsTreated.some(a => /lochia|uterine|delivery|infant|lactation/i.test(a));
+        }
+
+        if (!matchesAilmentList && !matchesPrepMethod && !matchesScientificNotes && !synonymMatch) {
+          return false;
+        }
+      }
+
+      // Free-text Search term
       if (!searchTerm.trim()) return true;
       const query = searchTerm.toLowerCase();
 
@@ -60,10 +111,13 @@ export const PlantCatalog: React.FC = () => {
       const matchHausa = (plant.localNames.hausa || '').toLowerCase().includes(query);
       const matchAilments = plant.ailmentsTreated.some(a => a.toLowerCase().includes(query));
       const matchPrep = plant.preparation.method.toLowerCase().includes(query);
+      const matchVerified = plant.verifiedBy.toLowerCase().includes(query);
 
-      return matchScientific || matchCommon || matchFamily || matchAmharic || matchYoruba || matchOromo || matchHausa || matchAilments || matchPrep;
+      return matchScientific || matchCommon || matchFamily || matchAmharic || matchYoruba || matchOromo || matchHausa || matchAilments || matchPrep || matchVerified;
     });
-  }, [plants, selectedRegionFilter, selectedPartFilter, searchTerm]);
+  }, [plants, selectedRegionFilter, selectedPartFilter, selectedAilmentFilter, searchTerm]);
+
+  const activeAilmentObj = COMMON_AILMENTS.find(a => a.query === selectedAilmentFilter);
 
   const partIcons: Record<PlantPart, string> = {
     leaves: '🍃 Leaves',
@@ -146,7 +200,7 @@ export const PlantCatalog: React.FC = () => {
             id="herb-search-input"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder={t.searchPlaceholder}
+            placeholder="Search by disease, symptom (malaria, fever, diabetes, cough...), plant or local name..."
             className="w-full bg-stone-50 border border-stone-300 rounded-xl pl-11 pr-10 py-3 text-sm sm:text-base text-stone-900 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white transition-all shadow-inner"
           />
           {searchTerm && (
@@ -159,8 +213,53 @@ export const PlantCatalog: React.FC = () => {
           )}
         </div>
 
+        {/* SEARCH BY DISEASE & SYMPTOM QUICK SELECTOR */}
+        <div className="mt-4 pt-1">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-bold text-stone-700 uppercase tracking-wide flex items-center gap-1.5">
+              <Stethoscope className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Search by Disease or Symptom:</span>
+            </span>
+            {selectedAilmentFilter !== 'all' && (
+              <button
+                onClick={() => setSelectedAilmentFilter('all')}
+                className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 flex items-center gap-1"
+              >
+                <span>Reset Disease Filter</span>
+                <XCircle className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+            {COMMON_AILMENTS.map(item => {
+              const isSelected = (item.id === 'all' && selectedAilmentFilter === 'all') || 
+                                (item.query !== '' && selectedAilmentFilter === item.query);
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setSelectedAilmentFilter(item.id === 'all' ? 'all' : item.query)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 min-h-[38px] border ${
+                    isSelected
+                      ? 'bg-emerald-800 text-white border-emerald-900 shadow-xs ring-2 ring-emerald-500/30'
+                      : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
+                  }`}
+                >
+                  <span className="text-sm">{item.icon}</span>
+                  <span>{item.label}</span>
+                  {item.localHint && (
+                    <span className={`text-[10px] hidden sm:inline ${isSelected ? 'text-emerald-200' : 'text-stone-400'}`}>
+                      ({item.localHint.split('/')[0].trim()})
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Morphological Parts Filter Chips */}
-        <div className="mt-3.5 flex items-center gap-2 overflow-x-auto no-scrollbar pt-1">
+        <div className="mt-3.5 flex items-center gap-2 overflow-x-auto no-scrollbar pt-1 border-t border-stone-100">
           <span className="text-xs font-semibold text-stone-500 shrink-0 flex items-center gap-1">
             <Filter className="w-3 h-3" />
             {t.partsUsedTitle}:
@@ -189,12 +288,44 @@ export const PlantCatalog: React.FC = () => {
             </button>
           ))}
         </div>
+
+        {/* Active Filter Notification Bar */}
+        {(selectedAilmentFilter !== 'all' || searchTerm.trim() !== '') && (
+          <div className="mt-3 bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 text-xs text-emerald-900">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+              <span>
+                Showing <strong>{filteredPlants.length}</strong> {filteredPlants.length === 1 ? 'herb' : 'herbs'} for:
+                {selectedAilmentFilter !== 'all' && (
+                  <span className="ml-1 px-2 py-0.5 bg-emerald-700 text-white font-bold rounded-md">
+                    {activeAilmentObj ? activeAilmentObj.label : selectedAilmentFilter}
+                  </span>
+                )}
+                {searchTerm.trim() !== '' && (
+                  <span className="ml-1 px-2 py-0.5 bg-stone-800 text-white font-bold rounded-md">
+                    "{searchTerm}"
+                  </span>
+                )}
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                setSelectedAilmentFilter('all');
+                setSearchTerm('');
+              }}
+              className="text-xs font-bold text-emerald-800 hover:text-emerald-950 underline flex items-center gap-1"
+            >
+              Clear All Filters
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Catalog Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {filteredPlants.map((plant) => {
           const isPlayingThis = activeAudioPlantId === plant.id && isPlayingAudio;
+          const isContributed = plant.verifiedBy.includes('Contributed');
 
           return (
             <div
@@ -228,6 +359,12 @@ export const PlantCatalog: React.FC = () => {
                     <span className="bg-amber-900/90 backdrop-blur-xs text-amber-100 text-[11px] font-bold px-2.5 py-1 rounded-full shadow-sm flex items-center gap-1 border border-amber-500/40">
                       <span>🇪🇹</span>
                       <span>Ethiopia (AASTU)</span>
+                    </span>
+                  )}
+
+                  {isContributed && (
+                    <span className="bg-amber-500 text-stone-950 text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-xs">
+                      🌱 Field Contributed
                     </span>
                   )}
                 </div>
@@ -284,13 +421,13 @@ export const PlantCatalog: React.FC = () => {
                     <div>
                       <span className="text-stone-500 block text-[10px]">Yorùbá (NG):</span>
                       <span className="font-bold text-emerald-950">
-                        {plant.localNames.yoruba}
+                        {plant.localNames.yoruba || '—'}
                       </span>
                     </div>
                     <div>
                       <span className="text-stone-500 block text-[10px]">Amharic (ET):</span>
                       <span className="font-bold text-emerald-950 font-ethiopic">
-                        {plant.localNames.amharic} ({plant.localNames.amharicScript})
+                        {plant.localNames.amharic || '—'} {plant.localNames.amharicScript ? `(${plant.localNames.amharicScript})` : ''}
                       </span>
                     </div>
                   </div>
@@ -314,25 +451,39 @@ export const PlantCatalog: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Key Ailments / Symptoms */}
+                {/* Key Ailments / Diseases Treated with Click-to-Filter */}
                 <div>
-                  <div className="text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1.5">
-                    {t.ailmentsTitle}
+                  <div className="text-[11px] font-semibold text-stone-500 uppercase tracking-wide mb-1.5 flex items-center justify-between">
+                    <span className="flex items-center gap-1">
+                      <Stethoscope className="w-3 h-3 text-emerald-600" />
+                      <span>{t.ailmentsTitle} (Click to Filter):</span>
+                    </span>
                   </div>
                   <div className="flex flex-wrap gap-1">
-                    {plant.ailmentsTreated.slice(0, 3).map((ailment, idx) => (
-                      <span
-                        key={idx}
-                        className="bg-stone-100 text-stone-700 text-[11px] px-2 py-0.5 rounded-full"
-                      >
-                        {ailment}
-                      </span>
-                    ))}
-                    {plant.ailmentsTreated.length > 3 && (
-                      <span className="text-[11px] text-stone-500 font-medium px-1">
-                        +{plant.ailmentsTreated.length - 3} more
-                      </span>
-                    )}
+                    {plant.ailmentsTreated.map((ailment, idx) => {
+                      const isMatch = selectedAilmentFilter !== 'all' && 
+                        ailment.toLowerCase().includes(selectedAilmentFilter.toLowerCase());
+                      const isSearchMatch = searchTerm.trim() !== '' && 
+                        ailment.toLowerCase().includes(searchTerm.toLowerCase());
+
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setSelectedAilmentFilter(ailment)}
+                          title={`Filter catalog by ${ailment}`}
+                          className={`text-[11px] px-2.5 py-1 rounded-lg transition-all text-left flex items-center gap-1 ${
+                            isMatch || isSearchMatch
+                              ? 'bg-emerald-700 text-white font-bold shadow-xs ring-2 ring-emerald-400'
+                              : 'bg-stone-100 hover:bg-emerald-100 text-stone-700 hover:text-emerald-900'
+                          }`}
+                        >
+                          <Tag className="w-2.5 h-2.5" />
+                          <span>{ailment}</span>
+                          {(isMatch || isSearchMatch) && <span>✓</span>}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -381,24 +532,34 @@ export const PlantCatalog: React.FC = () => {
       </div>
 
       {filteredPlants.length === 0 && (
-        <div className="bg-white rounded-2xl p-10 text-center border border-stone-200 text-stone-500 max-w-md mx-auto">
-          <div className="w-12 h-12 rounded-full bg-stone-100 flex items-center justify-center text-xl mx-auto mb-3">
-            🔍
+        <div className="bg-white rounded-2xl p-10 text-center border border-stone-200 text-stone-500 max-w-md mx-auto space-y-3">
+          <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center text-xl mx-auto mb-2">
+            <Stethoscope className="w-6 h-6" />
           </div>
           <h3 className="font-bold text-base text-stone-800">No medicinal plants found</h3>
-          <p className="text-xs text-stone-500 mt-1">
-            Try adjusting your search keywords, parts filter, or regional filter.
+          <p className="text-xs text-stone-500">
+            No herbs matched "{selectedAilmentFilter !== 'all' ? selectedAilmentFilter : searchTerm}". You can clear filters or record a new herb specimen.
           </p>
-          <button
-            onClick={() => {
-              setSearchTerm('');
-              setSelectedRegionFilter('all');
-              setSelectedPartFilter('all');
-            }}
-            className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-semibold hover:bg-emerald-500"
-          >
-            Clear Filters
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setSelectedAilmentFilter('all');
+                setSelectedRegionFilter('all');
+                setSelectedPartFilter('all');
+              }}
+              className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-xl text-xs font-semibold"
+            >
+              Clear All Filters
+            </button>
+            <button
+              onClick={() => setActiveTab('contribute')}
+              className="px-4 py-2 bg-emerald-700 text-white rounded-xl text-xs font-semibold hover:bg-emerald-600 flex items-center gap-1"
+            >
+              <PlusCircle className="w-3.5 h-3.5" />
+              <span>Record New Herb</span>
+            </button>
+          </div>
         </div>
       )}
     </div>
